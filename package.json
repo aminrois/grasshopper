@@ -1,0 +1,12 @@
+{
+  "name": "grasshopper-robotic-scoreboard",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install:all": "npm.cmd --prefix backend install && npm.cmd --prefix frontend install",
+    "dev:backend": "npm.cmd --prefix backend run dev",
+    "dev:frontend": "npm.cmd --prefix frontend run dev",
+    "test:backend": "npm.cmd --prefix backend run test"
+  }
+}
+
