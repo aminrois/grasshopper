@@ -3,10 +3,11 @@ import { Sidebar } from './components/Sidebar';
 import { OperatorPanel } from './pages/OperatorPanel';
 import { PublicScoreboard } from './pages/PublicScoreboard';
 import { HistoryPage } from './pages/HistoryPage';
+import { StandingsPage } from './pages/StandingsPage';
 import { SettingsPage } from './pages/SettingsPage';
 
 export const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<'arena' | 'matches' | 'history' | 'settings' | 'public'>('arena');
+  const [currentView, setCurrentView] = useState<'arena' | 'standings' | 'matches' | 'history' | 'settings' | 'public'>('arena');
 
   // Detect URL path on mount
   useEffect(() => {
@@ -15,13 +16,15 @@ export const App: React.FC = () => {
 
     if (path.includes('/public') || hash === '#public') {
       setCurrentView('public');
+    } else if (path.includes('/standings') || hash === '#standings') {
+      setCurrentView('standings');
     } else if (path.includes('/history') || hash === '#history') {
       setCurrentView('history');
     }
   }, []);
 
   // Update browser history when view changes
-  const handleSelectTab = (tab: 'arena' | 'matches' | 'history' | 'settings') => {
+  const handleSelectTab = (tab: 'arena' | 'standings' | 'matches' | 'history' | 'settings') => {
     if (tab === 'matches') {
       // Switches to arena kontrol with match switcher
       setCurrentView('arena');
@@ -60,6 +63,10 @@ export const App: React.FC = () => {
       {/* Main Content View */}
       {currentView === 'arena' && (
         <OperatorPanel onOpenPublic={() => setCurrentView('public')} />
+      )}
+
+      {currentView === 'standings' && (
+        <StandingsPage />
       )}
 
       {currentView === 'history' && (

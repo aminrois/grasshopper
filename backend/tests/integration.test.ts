@@ -119,6 +119,24 @@ describe('End-to-End Match Workflow Integration', () => {
     expect(updatedTeamA.finish_time_ms).toBeGreaterThan(0);
   });
 
+  it('cancels the last checkpoint and reverts team status and rankings', async () => {
+    const match = await matchService.getMatchById(matchId);
+    const teamA = match!.teams!.find(t => t.slot === 'A')!;
+
+    // Cancel Team A's Finish (CP 4)
+    const afterCancel = await matchService.cancelLastCheckpoint(matchId, teamA.id);
+    const revertedTeamA = afterCancel.teams?.find(t => t.slot === 'A')!;
+
+    expect(revertedTeamA.is_finished).toBe(false);
+    expect(revertedTeamA.furthest_checkpoint).toBe(3);
+    expect(revertedTeamA.finish_time_ms).toBeNull();
+    expect(revertedTeamA.status).toBe('Berlangsung');
+
+    // Re-record Finish for subsequent tests
+    const reFinish = await matchService.recordCheckpoint(matchId, teamA.id, 4);
+    expect(reFinish.match.teams?.find(t => t.slot === 'A')!.is_finished).toBe(true);
+  });
+
   it('ends match, marks unfinished teams as Tidak Finish, and ranks Finish above non-Finish', async () => {
     const ended = await matchService.endMatch(matchId, 'Selesai');
     expect(ended.status).toBe('COMPLETED');

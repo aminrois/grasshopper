@@ -164,10 +164,14 @@ export const MatchQuickEdit: React.FC<MatchQuickEditProps> = ({
           onChange={handleRoundChange}
           className="bg-[#081122] border border-[#16274a] text-xs font-bold text-white px-3 py-2 rounded-lg outline-none cursor-pointer focus:border-blue-500"
         >
+          <option value="Babak 32 Besar">Babak 32 Besar</option>
+          <option value="Babak 16 Besar">Babak 16 Besar</option>
+          <option value="Babak 8 Besar">Babak 8 Besar</option>
+          <option value="Semifinal">Semifinal</option>
+          <option value="Perebutan Juara 3 & 4">Perebutan Juara 3 & 4</option>
+          <option value="Final">Final</option>
           <option value="Penyisihan">Penyisihan</option>
           <option value="Perempat Final">Perempat Final</option>
-          <option value="Semifinal">Semifinal</option>
-          <option value="Final">Final</option>
           <option value="Babak Khusus">Babak Khusus</option>
         </select>
       </div>

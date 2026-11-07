@@ -84,3 +84,47 @@ export interface SystemSettings {
   default_duration_seconds: number;
 }
 
+export interface LeaderboardEntry {
+  rank: number;
+  team_id: string;
+  team_name: string;
+  school_name: string;
+  slot: string;
+  color: string;
+  match_id: string;
+  match_number: string;
+  match_name: string;
+  round: string;
+  is_finished: boolean;
+  finish_time_ms: number | null;
+  formatted_finish_time: string | null;
+  furthest_checkpoint: number;
+  furthest_checkpoint_time_ms: number | null;
+  formatted_furthest_time: string | null;
+  status: string;
+  rank_basis: string;
+  checkpoints: {
+    checkpoint_number: number;
+    elapsed_time_ms: number;
+    formatted_time: string;
+  }[];
+  cp1_time: string | null;
+  cp2_time: string | null;
+  cp3_time: string | null;
+  cp4_time: string | null;
+  gap_ms: number | null;
+  formatted_gap: string | null;
+  qualification_status: string;
+}
+
+export interface LeaderboardResponse {
+  round: string;
+  total_teams: number;
+  entries: LeaderboardEntry[];
+  summary: {
+    finished_count: number;
+    dnf_count: number;
+    leader_time: string | null;
+  };
+}
+

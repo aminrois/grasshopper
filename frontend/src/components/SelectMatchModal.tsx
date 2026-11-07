@@ -184,10 +184,14 @@ export const SelectMatchModal: React.FC<SelectMatchModalProps> = ({
                     onChange={(e) => setRound(e.target.value)}
                     className="w-full bg-[#081122] border border-[#223d70] rounded-xl px-3 py-2.5 text-xs font-semibold text-white outline-none cursor-pointer"
                   >
+                    <option value="Babak 32 Besar">Babak 32 Besar</option>
+                    <option value="Babak 16 Besar">Babak 16 Besar</option>
+                    <option value="Babak 8 Besar">Babak 8 Besar</option>
+                    <option value="Semifinal">Semifinal</option>
+                    <option value="Perebutan Juara 3 & 4">Perebutan Juara 3 & 4</option>
+                    <option value="Final">Final</option>
                     <option value="Penyisihan">Penyisihan</option>
                     <option value="Perempat Final">Perempat Final</option>
-                    <option value="Semifinal">Semifinal</option>
-                    <option value="Final">Final</option>
                     <option value="Babak Khusus">Babak Khusus</option>
                   </select>
                 </div>

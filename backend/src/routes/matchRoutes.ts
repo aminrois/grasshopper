@@ -28,6 +28,10 @@ router.post('/trial/stop', async (req, res) => {
   }
 });
 
+// System Settings & Factory Reset (PIN Protected)
+router.post('/system/reset-all', matchController.resetAllSystem);
+router.post('/system/settings', matchController.saveSystemSettings);
+
 // Matches CRUD & Lookup
 router.get('/', matchController.listMatches);
 router.post('/', matchController.createMatch);
@@ -46,6 +50,7 @@ router.post('/:id/reset', matchController.resetMatch);
 // Checkpoints
 router.post('/:id/checkpoints', matchController.recordCheckpoint);
 router.post('/:id/correct-checkpoint', matchController.correctCheckpoint);
+router.post('/:id/teams/:teamId/cancel-last-checkpoint', matchController.cancelLastCheckpoint);
 
 // Match flow
 router.post('/:id/verify', matchController.verifyMatch);

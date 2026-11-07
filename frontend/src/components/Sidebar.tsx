@@ -6,12 +6,13 @@ import {
   History, 
   Tv, 
   Settings,
-  Compass
+  Compass,
+  Trophy
 } from 'lucide-react';
 
 interface SidebarProps {
-  currentTab: 'arena' | 'matches' | 'history' | 'settings';
-  onSelectTab: (tab: 'arena' | 'matches' | 'history' | 'settings') => void;
+  currentTab: 'arena' | 'matches' | 'history' | 'standings' | 'settings';
+  onSelectTab: (tab: 'arena' | 'matches' | 'history' | 'standings' | 'settings') => void;
   onOpenPublic: () => void;
 }
 
@@ -22,6 +23,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const navItems = [
     { id: 'arena' as const, label: 'Arena Kontrol', icon: PlayCircle },
+    { id: 'standings' as const, label: 'Klasemen Tercepat', icon: Trophy },
     { id: 'matches' as const, label: 'Pertandingan', icon: Calendar },
     { id: 'history' as const, label: 'Riwayat Pertandingan', icon: History },
   ];

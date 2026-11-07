@@ -1,4 +1,4 @@
-import { Match, AuditLog, SystemSettings } from '../types';
+import { Match, AuditLog, SystemSettings, LeaderboardResponse } from '../types';
 
 const API_BASE = '/api';
 
@@ -140,6 +140,23 @@ export async function recordCheckpointApi(
   return res.json();
 }
 
+export async function cancelLastCheckpointApi(
+  matchId: string,
+  teamId: string,
+  performedBy: string = 'Juri Operator'
+): Promise<Match> {
+  const res = await fetch(`${API_BASE}/matches/${matchId}/teams/${teamId}/cancel-last-checkpoint`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ performed_by: performedBy })
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Gagal membatalkan checkpoint');
+  }
+  return res.json();
+}
+
 export async function nextMatchApi(currentMatchId: string): Promise<Match> {
   const res = await fetch(`${API_BASE}/matches/${currentMatchId}/next`, { method: 'POST' });
   if (!res.ok) {
@@ -201,6 +218,56 @@ export async function startTrialApi(durationSeconds: number = 30): Promise<any> 
 export async function stopTrialApi(): Promise<any> {
   const res = await fetch(`${API_BASE}/matches/trial/stop`, { method: 'POST' });
   if (!res.ok) throw new Error('Gagal menghentikan percobaan arena');
+  return res.json();
+}
+
+// Tournament Leaderboard / Klasemen
+export async function fetchLeaderboardApi(round?: string): Promise<LeaderboardResponse> {
+  const query = round && round !== 'ALL' ? `?round=${encodeURIComponent(round)}` : '';
+  const res = await fetch(`${API_BASE}/public/leaderboard${query}`);
+  if (!res.ok) throw new Error('Gagal memuat data klasemen');
+  return res.json();
+}
+
+// System Reset All (Factory Reset with PIN)
+export async function resetAllSystemApi(pin: string): Promise<{ success: boolean; message: string; match: Match }> {
+  const res = await fetch(`${API_BASE}/matches/system/reset-all`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pin, performed_by: 'Juri Operator' })
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Gagal mereset sistem');
+  }
+  return res.json();
+}
+
+// System Settings Save & Fetch
+export async function saveSystemSettingsApi(data: {
+  competition_name?: string;
+  organizer_name?: string;
+  default_duration_seconds?: number;
+}): Promise<{ success: boolean; settings: Record<string, string> }> {
+  const res = await fetch(`${API_BASE}/matches/system/settings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Gagal menyimpan pengaturan sistem');
+  }
+  return res.json();
+}
+
+export async function fetchSystemSettingsApi(): Promise<{
+  competition_name: string;
+  organizer_name: string;
+  default_duration_seconds: number;
+}> {
+  const res = await fetch(`${API_BASE}/public/system-info`);
+  if (!res.ok) throw new Error('Gagal memuat informasi sistem');
   return res.json();
 }
 

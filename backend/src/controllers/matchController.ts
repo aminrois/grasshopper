@@ -188,6 +188,21 @@ export async function recordCheckpoint(req: Request, res: Response): Promise<voi
   }
 }
 
+export async function cancelLastCheckpoint(req: Request, res: Response): Promise<void> {
+  try {
+    const performedBy = req.body?.performed_by || 'Juri Operator';
+    const match = await matchService.cancelLastCheckpoint(
+      paramToStr(req.params.id),
+      paramToStr(req.params.teamId),
+      performedBy
+    );
+    broadcastMatchUpdate(match);
+    res.json(match);
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+}
+
 export async function verifyMatch(req: Request, res: Response): Promise<void> {
   try {
     const performedBy = req.body.performed_by || 'Juri Operator';
@@ -279,6 +294,40 @@ export async function getAuditLogs(req: Request, res: Response): Promise<void> {
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 15;
     const logs = await auditService.getRecentAuditLogs(paramToStr(req.params.id), limit);
     res.json(logs);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+export async function resetAllSystem(req: Request, res: Response): Promise<void> {
+  try {
+    const { pin, performed_by } = req.body;
+    if (!pin) {
+      res.status(400).json({ error: 'PIN Konfirmasi diperlukan' });
+      return;
+    }
+    const initialMatch = await matchService.resetAllTournamentData(pin, performed_by);
+    broadcastTimerEvent(initialMatch.id, 'match:reset', initialMatch);
+    broadcastMatchUpdate(initialMatch);
+    res.json({
+      success: true,
+      message: 'Sistem dan seluruh data pertandingan berhasil direset untuk memulai turnamen baru.',
+      match: initialMatch
+    });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+}
+
+export async function saveSystemSettings(req: Request, res: Response): Promise<void> {
+  try {
+    const { competition_name, organizer_name, default_duration_seconds } = req.body;
+    const result = await matchService.updateSystemSettings({
+      competition_name,
+      organizer_name,
+      default_duration_seconds: default_duration_seconds ? parseInt(default_duration_seconds, 10) : undefined
+    });
+    res.json({ success: true, settings: result });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

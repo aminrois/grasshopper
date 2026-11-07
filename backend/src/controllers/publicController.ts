@@ -1,10 +1,21 @@
 import { Request, Response } from 'express';
 import * as matchService from '../services/matchService.js';
+import * as standingsService from '../services/standingsService.js';
 import { getDatabase } from '../db/database.js';
 
 function paramToStr(param: string | string[] | undefined): string {
   if (Array.isArray(param)) return param[0] || '';
   return param || '';
+}
+
+export async function getLeaderboard(req: Request, res: Response): Promise<void> {
+  try {
+    const round = typeof req.query.round === 'string' ? req.query.round : undefined;
+    const data = await standingsService.getLeaderboard(round);
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 }
 
 export async function getCurrentPublicMatch(req: Request, res: Response): Promise<void> {

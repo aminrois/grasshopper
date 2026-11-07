@@ -156,8 +156,7 @@ export async function getMatchById(id: string): Promise<Match | null> {
 
   // If match was RUNNING and now exceeded max duration, auto end it!
   if (matchData.status === 'RUNNING' && isTimedOut) {
-    await endMatch(id, 'Waktu maksimal tercapai (Timeout)');
-    return getMatchById(id);
+    return await endMatch(id, 'Waktu maksimal tercapai (Timeout)');
   }
 
   const teams: MatchTeam[] = teamsData.map(t => ({
@@ -367,15 +366,16 @@ export async function resumeMatch(id: string): Promise<Match> {
 
 export async function endMatch(id: string, reason: string = 'Pertandingan diakhiri'): Promise<Match> {
   const db = getDatabase();
-  const match = await getMatchById(id);
-  if (!match) throw new Error('Pertandingan tidak ditemukan');
+  const rows = await db.query<any>(`SELECT * FROM matches WHERE id = $1`, [id]);
+  if (rows.length === 0) throw new Error('Pertandingan tidak ditemukan');
+  const match = rows[0];
 
   const { elapsedMs } = calculateElapsedMs(match);
   const nowIso = new Date().toISOString();
 
   // If already verified or cancelled, do not mutate
   if (match.status === 'VERIFIED') {
-    return match;
+    return (await getMatchById(id))!;
   }
 
   await db.execute(
@@ -557,6 +557,95 @@ export async function recordCheckpoint(
   return { match: finalMatch, checkpoint: cpRecord };
 }
 
+// Cancel / Revert Last Checkpoint
+export async function cancelLastCheckpoint(
+  matchId: string,
+  teamId: string,
+  performedBy: string = 'Juri Operator'
+): Promise<Match> {
+  const db = getDatabase();
+  const match = await getMatchById(matchId);
+  if (!match) throw new Error('Pertandingan tidak ditemukan');
+
+  if (match.status === 'VERIFIED') {
+    throw new Error('Pertandingan sudah disahkan dan catatan waktu tidak dapat dibatalkan');
+  }
+
+  const team = match.teams?.find(t => t.id === teamId);
+  if (!team) throw new Error('Tim tidak ditemukan dalam pertandingan');
+
+  const furthestCp = team.furthest_checkpoint || 0;
+  if (furthestCp === 0) {
+    throw new Error(`Tim ${team.team_name} belum memiliki catatan checkpoint untuk dibatalkan`);
+  }
+
+  // Delete the furthest checkpoint record
+  await db.execute(
+    `DELETE FROM checkpoint_records 
+     WHERE match_id = $1 AND team_id = $2 AND checkpoint_number = $3`,
+    [matchId, teamId, furthestCp]
+  );
+
+  // Determine new state
+  const newFurthest = furthestCp - 1;
+  let newFurthestTime: number | null = null;
+  let newStatus = 'Belum Mulai';
+
+  if (newFurthest > 0) {
+    const prevCpRows = await db.query<{ elapsed_time_ms: number }>(
+      `SELECT elapsed_time_ms FROM checkpoint_records 
+       WHERE match_id = $1 AND team_id = $2 AND checkpoint_number = $3`,
+      [matchId, teamId, newFurthest]
+    );
+    if (prevCpRows.length > 0) {
+      newFurthestTime = prevCpRows[0].elapsed_time_ms;
+      newStatus = 'Berlangsung';
+    }
+  }
+
+  await db.execute(
+    `UPDATE match_teams SET 
+      furthest_checkpoint = $1, 
+      furthest_checkpoint_time_ms = $2, 
+      is_finished = 0, 
+      finish_time_ms = NULL, 
+      status = $3 
+     WHERE id = $4`,
+    [newFurthest, newFurthestTime, newStatus, teamId]
+  );
+
+  // If match was auto-completed (e.g. because all 4 had finished), roll back match status to PAUSED
+  if (match.status === 'COMPLETED' && !match.verified_at) {
+    const nowIso = new Date().toISOString();
+    await db.execute(
+      `UPDATE matches SET 
+        status = 'PAUSED', 
+        pause_start_time = $1, 
+        completed_at = NULL, 
+        updated_at = $2 
+       WHERE id = $3`,
+      [Date.now(), nowIso, matchId]
+    );
+
+    // Restore non-finished teams status to 'Berlangsung' if they had reached CP > 0
+    await db.execute(
+      `UPDATE match_teams SET status = CASE WHEN furthest_checkpoint > 0 THEN 'Berlangsung' ELSE 'Belum Mulai' END 
+       WHERE match_id = $1 AND is_finished = 0`,
+      [matchId]
+    );
+  }
+
+  const cpLabel = furthestCp === 4 ? 'FINISH' : `CP ${furthestCp}`;
+  await logAudit(
+    matchId,
+    'CANCEL_CHECKPOINT',
+    `Pembatalan ${cpLabel} untuk ${team.team_name}`,
+    performedBy
+  );
+
+  return (await getMatchById(matchId))!;
+}
+
 // Verification & Correction
 export async function verifyMatch(matchId: string, performedBy: string = 'Juri Operator'): Promise<Match> {
   const db = getDatabase();
@@ -625,4 +714,89 @@ export async function correctCheckpoint(
   );
 
   return (await getMatchById(matchId))!;
+}
+
+// Reset Entire Tournament Data to Start Fresh (Protected by PIN 1234)
+export async function resetAllTournamentData(
+  pin: string,
+  performedBy: string = 'Juri Operator'
+): Promise<Match> {
+  if (pin !== '1234') {
+    throw new Error('PIN Konfirmasi Salah! Masukkan PIN 1234 untuk mereset seluruh data.');
+  }
+
+  const db = getDatabase();
+
+  // Wipe data from all tables
+  await db.execute(`DELETE FROM checkpoint_records`);
+  await db.execute(`DELETE FROM match_teams`);
+  await db.execute(`DELETE FROM match_events`);
+  await db.execute(`DELETE FROM audit_logs`);
+  await db.execute(`DELETE FROM matches`);
+
+  // Create clean initial Match GH-001 in Babak 32 Besar (Ready)
+  const initialMatch = await createMatch({
+    match_number: 'GH-001',
+    name: 'Pertandingan GH-001',
+    round: 'Babak 32 Besar',
+    max_duration_seconds: 120,
+    teams: [
+      { slot: 'A', name: 'Tim Merah' },
+      { slot: 'B', name: 'Tim Biru' },
+      { slot: 'C', name: 'Tim Hijau' },
+      { slot: 'D', name: 'Tim Kuning' }
+    ]
+  });
+
+  await setActiveMatchId(initialMatch.id);
+
+  await logAudit(
+    initialMatch.id,
+    'FACTORY_RESET',
+    'Sistem dan seluruh riwayat pertandingan telah direset untuk turnamen baru (Konfirmasi PIN 1234 berhasil)',
+    performedBy
+  );
+
+  return initialMatch;
+}
+
+// Update System Settings (Branding, durations)
+export async function updateSystemSettings(settings: {
+  competition_name?: string;
+  organizer_name?: string;
+  default_duration_seconds?: number;
+}): Promise<Record<string, string>> {
+  const db = getDatabase();
+  const now = new Date().toISOString();
+
+  if (settings.competition_name !== undefined) {
+    await db.execute(
+      `INSERT INTO system_settings (key, value, updated_at) VALUES ('competition_name', $1, $2)
+       ON CONFLICT(key) DO UPDATE SET value = $1, updated_at = $2`,
+      [settings.competition_name, now]
+    );
+  }
+
+  if (settings.organizer_name !== undefined) {
+    await db.execute(
+      `INSERT INTO system_settings (key, value, updated_at) VALUES ('organizer_name', $1, $2)
+       ON CONFLICT(key) DO UPDATE SET value = $1, updated_at = $2`,
+      [settings.organizer_name, now]
+    );
+  }
+
+  if (settings.default_duration_seconds !== undefined) {
+    await db.execute(
+      `INSERT INTO system_settings (key, value, updated_at) VALUES ('default_duration_seconds', $1, $2)
+       ON CONFLICT(key) DO UPDATE SET value = $1, updated_at = $2`,
+      [String(settings.default_duration_seconds), now]
+    );
+  }
+
+  const rows = await db.query<{ key: string; value: string }>(`SELECT key, value FROM system_settings`);
+  const result: Record<string, string> = {};
+  for (const r of rows) {
+    result[r.key] = r.value;
+  }
+  return result;
 }

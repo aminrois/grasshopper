@@ -3,28 +3,37 @@ import { MatchTeam, Match } from '../types';
 import { 
   Edit3, 
   Flag, 
-  Check, 
+  RotateCcw, 
   Compass, 
-  Crown, 
-  AlertCircle 
+  Crown 
 } from 'lucide-react';
 
 interface TeamCardProps {
   team: MatchTeam;
   match: Match | null;
   onRecordCheckpoint: (teamId: string, cpNumber: number) => Promise<void>;
+  onCancelCheckpoint: (teamId: string) => Promise<void>;
   onEditTeam: (team: MatchTeam) => void;
+  recordKeyHint: string;
+  cancelKeyHint: string;
+  isFlashing?: 'record' | 'cancel' | null;
 }
 
 export const TeamCard: React.FC<TeamCardProps> = ({
   team,
   match,
   onRecordCheckpoint,
-  onEditTeam
+  onCancelCheckpoint,
+  onEditTeam,
+  recordKeyHint,
+  cancelKeyHint,
+  isFlashing
 }) => {
   const [loadingCp, setLoadingCp] = useState<number | null>(null);
+  const [loadingCancel, setLoadingCancel] = useState(false);
 
   const isRunning = match?.status === 'RUNNING';
+  const canCancel = match?.status === 'RUNNING' || match?.status === 'PAUSED';
   const furthestCp = team.furthest_checkpoint || 0;
 
   // Header background color map
@@ -52,31 +61,67 @@ export const TeamCard: React.FC<TeamCardProps> = ({
     }
   };
 
+  const handleCancelClick = async () => {
+    if (!canCancel || furthestCp === 0 || loadingCancel) return;
+    try {
+      setLoadingCancel(true);
+      await onCancelCheckpoint(team.id);
+    } finally {
+      setLoadingCancel(false);
+    }
+  };
+
   // Find checkpoint record for this cpNumber
   const getCpRecord = (num: number) => {
     return team.checkpoints?.find(c => c.checkpoint_number === num && !c.is_corrected);
   };
 
+  // Flash ring styling
+  const flashRingClass = isFlashing === 'record'
+    ? 'ring-4 ring-emerald-400 shadow-[0_0_25px_rgba(52,211,153,0.6)] scale-[1.01]'
+    : isFlashing === 'cancel'
+    ? 'ring-4 ring-rose-500 shadow-[0_0_25px_rgba(244,63,94,0.6)] scale-[1.01]'
+    : '';
+
   return (
-    <div className={`bg-[#0a1224] border ${style.border} rounded-2xl overflow-hidden flex flex-col justify-between shadow-lg hover:shadow-xl transition-shadow`}>
+    <div className={`bg-[#0a1224] border ${style.border} rounded-2xl overflow-hidden flex flex-col justify-between shadow-lg hover:shadow-xl transition-all duration-200 ${flashRingClass}`}>
       {/* Team Header */}
       <div className={`${style.header} px-4 py-3 flex items-center justify-between text-white shadow-sm`}>
         <div className="flex items-center gap-2.5">
           <div className={`w-7 h-7 rounded-full ${style.circle} flex items-center justify-center font-black text-sm shadow-inner`}>
             {team.slot}
           </div>
-          <span className="font-extrabold text-sm uppercase tracking-wider truncate max-w-[150px]">
-            {team.team_name}
-          </span>
+          <div className="flex flex-col">
+            <span className="font-extrabold text-sm uppercase tracking-wider truncate max-w-[130px]" title={team.team_name}>
+              {team.team_name}
+            </span>
+            <span className="text-[10px] font-mono font-bold text-white/90">
+              Catat: <kbd className="px-1 py-0.2 bg-black/40 rounded text-amber-300 font-extrabold">[{recordKeyHint}]</kbd>
+            </span>
+          </div>
         </div>
-        <button
-          onClick={() => onEditTeam(team)}
-          disabled={isRunning}
-          title="Ubah nama tim"
-          className="text-white/80 hover:text-white p-1 rounded transition-colors disabled:opacity-40"
-        >
-          <Edit3 className="w-4 h-4" />
-        </button>
+
+        <div className="flex items-center gap-1.5">
+          {furthestCp > 0 && canCancel && (
+            <button
+              onClick={handleCancelClick}
+              disabled={loadingCancel}
+              title={`Batalkan CP ${furthestCp} (Tombol ${cancelKeyHint})`}
+              className="bg-black/35 hover:bg-rose-950/90 border border-white/20 hover:border-rose-400 text-white hover:text-rose-200 px-2 py-1 rounded-lg text-xs font-mono font-bold flex items-center gap-1 transition-all shadow-sm active:scale-95 disabled:opacity-50"
+            >
+              <RotateCcw className={`w-3 h-3 text-rose-300 ${loadingCancel ? 'animate-spin' : ''}`} />
+              <span className="text-[10px]">Batal [{cancelKeyHint}]</span>
+            </button>
+          )}
+          <button
+            onClick={() => onEditTeam(team)}
+            disabled={isRunning}
+            title="Ubah nama tim"
+            className="text-white/80 hover:text-white p-1 rounded transition-colors disabled:opacity-40"
+          >
+            <Edit3 className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Checkpoints Row */}
@@ -119,6 +164,11 @@ export const TeamCard: React.FC<TeamCardProps> = ({
                 <span className="text-[9px] mt-0.5 opacity-70">
                   {isRecorded ? (isFinish ? 'Finish' : 'OK') : 'Belum'}
                 </span>
+                {isNext && (
+                  <span className="mt-1 text-[9px] font-mono font-black bg-amber-400 text-slate-950 px-1 py-0.2 rounded shadow-sm">
+                    [{recordKeyHint}]
+                  </span>
+                )}
               </button>
             );
           })}
@@ -135,6 +185,15 @@ export const TeamCard: React.FC<TeamCardProps> = ({
               <div className="text-lg font-black font-mono mt-0.5 text-white">
                 {team.checkpoints?.find(c => c.checkpoint_number === 4)?.formatted_time || '—'}
               </div>
+              {canCancel && (
+                <button
+                  onClick={handleCancelClick}
+                  disabled={loadingCancel}
+                  className="mt-1 text-[10px] font-mono text-rose-400 hover:text-rose-300 flex items-center gap-1 underline transition-colors disabled:opacity-40"
+                >
+                  <RotateCcw className="w-2.5 h-2.5" /> Batalkan Finish (Tekan [{cancelKeyHint}])
+                </button>
+              )}
             </div>
           ) : furthestCp > 0 ? (
             <div className="flex flex-col items-center text-cyan-400">
@@ -144,6 +203,15 @@ export const TeamCard: React.FC<TeamCardProps> = ({
               <span className="text-base font-black font-mono text-cyan-300 mt-0.5">
                 {team.checkpoints?.find(c => c.checkpoint_number === furthestCp)?.formatted_time || '—'}
               </span>
+              {canCancel && (
+                <button
+                  onClick={handleCancelClick}
+                  disabled={loadingCancel}
+                  className="mt-1 text-[10px] font-mono text-rose-400 hover:text-rose-300 flex items-center gap-1 underline transition-colors disabled:opacity-40"
+                >
+                  <RotateCcw className="w-2.5 h-2.5" /> Batalkan CP {furthestCp} (Tekan [{cancelKeyHint}])
+                </button>
+              )}
             </div>
           ) : (
             <div className="flex flex-col items-center text-slate-400">
@@ -151,6 +219,11 @@ export const TeamCard: React.FC<TeamCardProps> = ({
               <span className="text-xs font-medium text-slate-400">
                 Belum ada waktu yang tercatat
               </span>
+              {isRunning && (
+                <span className="text-[10px] text-amber-300/80 font-mono mt-0.5">
+                  Tekan <kbd className="font-bold underline">[{recordKeyHint}]</kbd> untuk CP 1
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -185,4 +258,3 @@ export const TeamCard: React.FC<TeamCardProps> = ({
     </div>
   );
 };
-
